@@ -3,7 +3,7 @@
 ## Progress
 Day 1: Spring Boot scaffold, health endpoint
 Day 2: VSE integration, POST /search and POST /ingest endpoints working
-
+Day 3: Postgres integration, vectors persist across restarts
 
 ---
 
@@ -54,7 +54,35 @@ confirmed working.
 
 ---
 
-## Day 
+## Day 3
+### What I built
+Added Postgres integration via Docker container (postgres:15) running on port 5432. 
+Added spring-boot-starter-jdbc and postgresql dependencies. Configured
+database connection in application.properties. Created schema.sql with IF NOT
+EXISTS guard that auto-runs on startup. Built VectorRepository with save() and
+findAll() methods using JdbcTemplate. Vectors serialized to comma-separated
+strings for storage, deserialized back to float[] on load. Added @PostConstruct
+loadFromDatabase() to SearchService to reload all vectors into BruteForceIndex
+on startup. Updated IngestRequest to include label field. 
+Verified full persistence cycle — ingested vector survived server restart and was searchable without re-ingesting.
+
+### What confused me
+- The RowMapper lambda syntax confused me. It's not something I use often, but it was opportune to do so, but I couldn't connect exactly what the lambda was supposed to look like and how to complete the following code using it.
+- Updating IngestRequest to include label caused a cascade of compiler errors through SearchService and SearchController that needed to be traced and fixed.
+
+### How I resolved it
+- The lambda clicked after seeing the full class version side by side with the lambda version, jogging my memory on why it is more efficient and better practice all-around
+- Followed the compiler errors in order — SearchService's add() needed a label
+  parameter, which then surfaced the missing getLabel() call in SearchController.
+  Fixed each one by tracing back to the source change.
+
+### Performance notes
+Server startup: stable. Postgres round-trip not yet benchmarked — persistence
+day only. Full ingest → restart → search cycle confirmed working end to end.
+
+---
+
+## Day
 ### What I built
 
 

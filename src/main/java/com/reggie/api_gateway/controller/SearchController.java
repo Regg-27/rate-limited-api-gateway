@@ -26,7 +26,7 @@ public class SearchController {
 
     @PostMapping("/ingest")
     public String ingest(@RequestBody IngestRequest request) {
-        searchService.add(request.getId(), request.getVector());
+        searchService.add(request.getId(), request.getLabel(), request.getVector());
         return "Vector Added";
     }
 }

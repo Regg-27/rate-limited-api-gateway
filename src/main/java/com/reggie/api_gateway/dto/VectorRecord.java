@@ -1,12 +1,18 @@
 package com.reggie.api_gateway.dto;
 
-public class IngestRequest {
+public class VectorRecord {
     private int id;
     private String label;
     private float[] vector;
 
-    public IngestRequest() {
+    public VectorRecord() {
 
+    }
+
+    public VectorRecord(int id, String label, float[] vector) {
+        this.id = id;
+        this.label = label;
+        this.vector = vector;
     }
 
     public int getId() {
