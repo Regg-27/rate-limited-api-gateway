@@ -4,6 +4,7 @@
 Day 1: Spring Boot scaffold, health endpoint
 Day 2: VSE integration, POST /search and POST /ingest endpoints working
 Day 3: Postgres integration, vectors persist across restarts
+Day 4: JWT authentication — login endpoint, token filter, protected endpoints
 
 ---
 
@@ -82,6 +83,39 @@ day only. Full ingest → restart → search cycle confirmed working end to end.
 
 ---
 
+## Day 4
+### What I built
+Added JWT authentication. Pulled in the JJWT library (jjwt-api, jjwt-impl,
+jjwt-jackson) via pom.xml. Built JwtService with generateToken() — builds a
+signed JWT with subject, issued-at, and one-hour expiration — and validateToken()
+which verifies the signature and extracts the username, throwing if the token is
+invalid, expired, or tampered with. Created LoginRequest DTO and AuthController
+with POST /login that issues a token. Built JwtFilter extending
+OncePerRequestFilter — intercepts every request, exempts /login, pulls the token
+from the Authorization header, strips the "Bearer " prefix, validates it, and
+either passes the request down the filter chain or returns 401. Verified the full
+flow: no token → 401, login → token issued, valid token → 200 with results.
+
+### What confused me
+Nothing major caused real confusion this session. The day was mostly absorbing
+new JWT concepts — token structure, signatures, the filter chain — rather than
+struggling with them. The one genuinely new mechanism was the filter chain and
+how filterChain.doFilter() controls whether a request proceeds.
+
+### How I resolved it
+Worked through the JWT model conceptually before writing code, which made the
+implementation straightforward. Deduced the /login filter-exemption problem before
+it became a bug rather than hitting it and debugging afterward.
+
+### Performance notes
+No performance benchmarking — security day. Auth adds one signature verification
+per protected request, which is negligible (HMAC-SHA256 is fast). Token expiration
+set to one hour. Known limitations for README: secret key regenerates on restart
+(invalidating existing tokens) and /login accepts any credentials without
+verifying against stored hashed passwords.
+
+---
+
 ## Day
 ### What I built
 
@@ -96,3 +130,9 @@ day only. Full ingest → restart → search cycle confirmed working end to end.
 
 
 ---
+
+
+
+
+notes
+Vectors stored as comma-separated TEXT in Postgres rather than a native array type — simplest JDBC mapping, at the cost of not being able to query individual vector values in SQL. Acceptable tradeoff since vector contents are never queried at the database level; all similarity computation happens in-memory.
