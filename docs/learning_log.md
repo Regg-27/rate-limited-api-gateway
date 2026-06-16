@@ -5,6 +5,7 @@ Day 1: Spring Boot scaffold, health endpoint
 Day 2: VSE integration, POST /search and POST /ingest endpoints working
 Day 3: Postgres integration, vectors persist across restarts
 Day 4: JWT authentication — login endpoint, token filter, protected endpoints
+Day 5: Redis caching — cache-aside pattern, query results cached by hashed key
 
 ---
 
@@ -116,6 +117,44 @@ verifying against stored hashed passwords.
 
 ---
 
+## Day 5
+### What I built
+Added Redis caching via Docker container (redis:7) on port 6379. Added
+spring-boot-starter-data-redis dependency and Redis connection config in
+application.properties. Built RedisConfig with a RedisTemplate bean using
+StringRedisSerializer for keys and GenericJacksonJsonRedisSerializer for values.
+Implemented cache-aside pattern in SearchService.search(): hash the query vector
+with Arrays.hashCode() to build a key ("search:" + hash), check Redis first, return
+on hit, otherwise run the search, store the result, and return it. Added a no-args
+constructor to SearchResult for Jackson deserialization. Verified the cache works —
+confirmed the hashed key landed in Redis via redis-cli KEYS.
+
+### What confused me
+Not much conceptual confusion — the cache-aside pattern mapped directly onto the
+cache simulator work. The real time sink was a misleading 401 on /ingest that
+looked like an auth failure but was actually a DuplicateKeyException from trying to
+re-insert id 1, which already existed in Postgres from Day 3 testing. A separate
+deprecation issue with the Redis serializer (Spring Data Redis 4.0 deprecated
+GenericJackson2JsonRedisSerializer in favor of GenericJacksonJsonRedisSerializer,
+which uses a builder instead of a constructor) also took a few tries to resolve.
+
+### How I resolved it
+Added e.printStackTrace() to the filter's catch block to surface the real
+exception, which revealed the duplicate-key error rather than an auth problem —
+reading the stack trace was the key. Resolved the duplicate by testing with a fresh
+id. Fixed the serializer by switching to the non-deprecated builder API.
+
+### Performance notes
+Cache hit returns stored results without re-running cosine similarity across the
+index — the expensive operation is skipped entirely on repeat queries. Not yet
+benchmarked with timing; that comes with the Locust load testing on Day 8. Known
+limitations for README: Arrays.hashCode is a 32-bit hash with theoretical collision
+risk (production would use SHA-256); no TTL on cache entries yet so the cache grows
+unbounded; duplicate-id ingest throws instead of returning a clean error.
+
+
+---
+
 ## Day
 ### What I built
 
@@ -134,5 +173,3 @@ verifying against stored hashed passwords.
 
 
 
-notes
-Vectors stored as comma-separated TEXT in Postgres rather than a native array type — simplest JDBC mapping, at the cost of not being able to query individual vector values in SQL. Acceptable tradeoff since vector contents are never queried at the database level; all similarity computation happens in-memory.

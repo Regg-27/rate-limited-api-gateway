@@ -50,6 +50,10 @@ public class BruteForceIndex implements VectorIndex {
             this.id = id;
             this.score = score;
         }
+
+        public SearchResult() {
+
+        }
     }
 }
 
