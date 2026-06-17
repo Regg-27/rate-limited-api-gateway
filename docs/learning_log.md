@@ -6,6 +6,7 @@ Day 2: VSE integration, POST /search and POST /ingest endpoints working
 Day 3: Postgres integration, vectors persist across restarts
 Day 4: JWT authentication — login endpoint, token filter, protected endpoints
 Day 5: Redis caching — cache-aside pattern, query results cached by hashed key
+Day 6: Rate limiting (Redis counter, 100/min, 429) + global error handling (409 on duplicate)
 
 ---
 
@@ -155,6 +156,40 @@ unbounded; duplicate-id ingest throws instead of returning a clean error.
 
 ---
 
+## Day 6
+### What I built
+Added rate limiting and global error handling. Built RateLimiter in the security
+package — uses Redis to track per-user request counts with isAllowed(username):
+increments a "rate:" + username counter, sets a 60-second TTL on the first request
+of a window, and returns whether the count is within the limit of 100. Wired it into
+JwtFilter after token validation — over-limit requests get a 429 and stop before
+reaching the search. Built GlobalExceptionHandler with @RestControllerAdvice to
+catch exceptions app-wide and return proper status codes with messages — duplicate
+ingest now returns a clean 409 Conflict instead of a raw stack trace. Verified rate
+limiting with a 105-request loop (100×200, 5×429) and the 409 on duplicate id.
+
+### What confused me
+No real conceptual confusion this session — rate limiting reused the Redis patterns
+from Day 5 and the cache-aside thinking, so it was mostly applying existing knowledge.
+The only friction was shell-level: a multi-line curl loop broke in zsh because the
+line continuations weren't handled, and a variable assignment failed because I put
+spaces around the equals sign (TOKEN = "..." instead of TOKEN="...").
+
+### How I resolved it
+Collapsed the curl loop onto a single line so zsh ran it as one command, and removed
+the spaces around the assignment. Both were syntax issues rather than logic problems —
+the rate-limiting and exception-handling code worked as written once the test commands
+were formatted correctly.
+
+### Performance notes
+Rate limiting adds one Redis increment per request — negligible overhead, far cheaper
+than the search it protects. The 60-second TTL auto-resets the window with no manual
+cleanup. Known limitations for README: fixed-window rate limiting can allow bursts at
+window boundaries (a sliding window would be smoother); limit is hardcoded at 100
+rather than configurable.
+
+---
+
 ## Day
 ### What I built
 
@@ -170,6 +205,15 @@ unbounded; duplicate-id ingest throws instead of returning a clean error.
 
 ---
 
+## Notes
+Vectors stored as comma-separated TEXT in Postgres rather than a native array type — simplest JDBC mapping, at the cost of not being able to query individual vector values in SQL. Acceptable tradeoff since vector contents are never queried at the database level; all similarity computation happens in-memory.
+JWT secret key regenerates on each restart, invalidating all existing tokens. Production would load a stable secret from config/env.
+/login accepts any credentials without verifying against stored hashed passwords.
+Arrays.hashCode is a 32-bit hash with theoretical collision risk for cache keys; production would use SHA-256.
+No TTL on search cache entries — the cache grows unbounded. (Note: the rate-limiter counter does have a TTL; this is specifically about the search result cache.)
+Duplicate-id ingest now returns a clean 409, but other malformed input (e.g. wrong vector dimensions, bad JSON) isn't yet validated with specific handlers.
+Fixed-window rate limiting can allow bursts at window boundaries — up to 2x the limit across a window edge. A sliding window would smooth this out.
+Rate limit is hardcoded at 100/minute rather than configurable via properties.
 
 
 

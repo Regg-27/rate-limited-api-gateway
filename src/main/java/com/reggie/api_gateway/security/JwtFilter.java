@@ -14,9 +14,11 @@ import java.util.Objects;
 public class JwtFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private RateLimiter limit;
 
-    public JwtFilter(JwtService jwtService) {
+    public JwtFilter(JwtService jwtService, RateLimiter limit) {
         this.jwtService = jwtService;
+        this.limit = limit;
     }
 
     @Override
@@ -36,6 +38,10 @@ public class JwtFilter extends OncePerRequestFilter {
         String token = authHeader.substring(7);
         try {
             String username = jwtService.validateToken(token);
+            if (!limit.isAllowed(username)) {
+                response.setStatus(429);
+                return;
+            }
             filterChain.doFilter(request, response);
         } catch (Exception e) {
             response.setStatus(401);
