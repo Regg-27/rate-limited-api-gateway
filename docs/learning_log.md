@@ -8,6 +8,7 @@ Day 4: JWT authentication — login endpoint, token filter, protected endpoints
 Day 5: Redis caching — cache-aside pattern, query results cached by hashed key
 Day 6: Rate limiting (Redis counter, 100/min, 429) + global error handling (409 on duplicate)
 Day 7: Dockerized the app (multi-stage Dockerfile) + docker-compose wiring all three containers
+Day 8: Add Locust load testing, fix health endpoint auth and rate-limit key bug"
 
 ---
 
@@ -228,17 +229,53 @@ data — a volume would decouple data lifetime from container lifetime.
 
 ---
 
-## Day
+## Day 8
 ### What I built
+Installed Locust (Python load testing tool) and wrote locustfile.py defining an
+ApiUser class — logs in once per virtual user (on_start), then repeatedly fires
+authenticated /search requests (a @task) with a 1-second wait between requests.
+Ran the load test at 50 concurrent users against the Dockerized stack from Day 7.
 
+Hit and fixed two real bugs along the way: /health was unintentionally protected
+by JwtFilter (fixed by adding it to the path exemption alongside /login), and the
+rate limiter was keyed by username, so all 50 simulated Locust users sharing one
+hardcoded "reggie" login meant they shared a single 100/min budget — fixed by
+generating a unique username per virtual user with uuid.uuid4().
+
+Ran two benchmark scenarios: repeated identical query vector (mostly cache hits)
+and randomized query vectors per request (mostly cache misses), to compare
+cached vs uncached search performance.
 
 ### What confused me
-
+Locust itself was brand new — the on_start/@task structure, wait_time, and the
+web UI workflow (start, watch, stop, read stats) all took some getting used to on
+a first pass. The terminal work also added friction — managing two things running
+at once (the Docker stack in one terminal, Locust in another), remembering which
+port belongs to what (8080 for the API, 8089 for the Locust UI), and navigating
+between directories for different commands.
 
 ### How I resolved it
-
+Worked through Locust by mapping its structure to things I already knew — the
+ApiUser class as something close to a Java class extending a base type, @task as
+similar to @Test or @GetMapping, on_start as a lifecycle method. That made the
+unfamiliar syntax easier to parse even though the tool itself was new. For the
+terminal/port confusion, slowed down and checked docker ps and curl responses at
+each step instead of assuming things were running correctly, which is how the
+two real bugs (the rate-limit key and the unprotected /health endpoint) actually
+got caught.
 
 ### Performance notes
+50 concurrent users, 0% failure rate after fixes.
+- /login: median 27ms, 95%ile 95ms, 99%ile 99ms
+- /search (cached, repeated vector): median 18ms, 95%ile 33ms, 99%ile 39ms, max 46ms
+- /search (uncached, random vectors): median 19ms, 95%ile 30ms, 99%ile 39ms
+- Throughput: ~45 req/s sustained
+
+Cache showed negligible measured benefit (18ms vs 19ms median) at current index
+size (~3 vectors) — brute-force cosine similarity over a handful of vectors is
+already faster than the overhead the cache would save. Cache value is proportional
+to dataset size; a larger index would likely show a measurable gap. Documented as
+a finding rather than re-running at scale, given project timeline.
 
 ---
 
@@ -255,7 +292,19 @@ Rate limit is hardcoded at 100/minute rather than configurable via properties.
 Known limitation for README: Postgres data lives in the
 container rather than a named Docker volume, so removing the container deletes the
 data — a volume would decouple data lifetime from container lifetime.
-
+Day 8 — Locust load test results (50 concurrent users, 1s wait time, real search vector [1.0, 0.0, 0.0]):
+- /login:  50 requests, 0 fails, median 27ms, 95%ile 95ms, 99%ile 99ms
+- /search: 3702 requests, 0 fails, median 18ms, 95%ile 33ms, 99%ile 39ms, max 46ms
+- Throughput: 45.2 req/s sustained, 50 concurrent users
+- 0% failure rate after fixing two test issues: shared rate-limit bucket (all
+  virtual users sharing one username) and unauthenticated /health endpoint
+  Second run — varied random query vectors (mostly cache misses):
+- /search: 3050 requests, 0 fails, median 19ms, 95%ile 30ms, 99%ile 39ms
+Comparison: cached (repeated vector) vs uncached (random vectors) showed
+negligible difference (18ms vs 19ms median) at current index size (~3 vectors).
+Cache benefit is proportional to dataset size — with only a few vectors in the
+index, brute-force cosine similarity is already faster than the overhead it
+would save. Would expect a measurable gap with hundreds/thousands of vectors.
 
 
 
