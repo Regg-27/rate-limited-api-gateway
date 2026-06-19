@@ -7,6 +7,7 @@ Day 3: Postgres integration, vectors persist across restarts
 Day 4: JWT authentication — login endpoint, token filter, protected endpoints
 Day 5: Redis caching — cache-aside pattern, query results cached by hashed key
 Day 6: Rate limiting (Redis counter, 100/min, 429) + global error handling (409 on duplicate)
+Day 7: Dockerized the app (multi-stage Dockerfile) + docker-compose wiring all three containers
 
 ---
 
@@ -190,6 +191,43 @@ rather than configurable.
 
 ---
 
+## Day 7
+### What I built
+Containerized the full application. Wrote a multi-stage Dockerfile — stage 1 uses
+a Maven+JDK image to build the JAR, stage 2 copies just the JAR into a lightweight
+JRE image to run it, keeping the final image small. Wrote docker-compose.yml
+defining three services: postgres, redis, and app (built from the Dockerfile).
+Configured the app service to override the datasource URL and Redis host via
+environment variables so containers reach each other by service name (postgres,
+redis) instead of localhost, while application.properties keeps localhost for
+running from IntelliJ. depends_on ensures the datastores start before the app.
+Verified the entire stack comes up with one command (docker compose up --build)
+and serves the full login → ingest → search flow.
+
+### What confused me
+No real struggle this session — Docker was mostly new material to absorb rather than
+anything that blocked me. The one concept that needed a mental adjustment was container
+networking: inside a container, localhost refers to that container itself, not the host
+machine, so the app couldn't reach Postgres or Redis at localhost the way it does from
+IntelliJ. That's a different model of "where things live" than I'd been working with.
+
+### How I resolved it
+Understood that within a Docker Compose network, containers reach each other by service
+name (postgres, redis) rather than localhost. Set those as environment variables on the
+app service so they override application.properties only inside Docker, which keeps
+localhost working when running from IntelliJ. The full stack came up on the first
+compose run, which confirmed the networking was wired correctly.
+
+### Performance notes
+App starts in ~2.6s inside the container. Multi-stage build keeps the runtime image
+to just a JRE plus the JAR rather than the full Maven toolchain. Inside the container
+the app runs on Java 21 (the intended target), sidestepping the Homebrew Java 25
+mismatch on the host machine. Known limitation for README: Postgres data lives in the
+container rather than a named Docker volume, so removing the container deletes the
+data — a volume would decouple data lifetime from container lifetime.
+
+---
+
 ## Day
 ### What I built
 
@@ -202,8 +240,8 @@ rather than configurable.
 
 ### Performance notes
 
-
 ---
+
 
 ## Notes
 Vectors stored as comma-separated TEXT in Postgres rather than a native array type — simplest JDBC mapping, at the cost of not being able to query individual vector values in SQL. Acceptable tradeoff since vector contents are never queried at the database level; all similarity computation happens in-memory.
@@ -214,6 +252,10 @@ No TTL on search cache entries — the cache grows unbounded. (Note: the rate-li
 Duplicate-id ingest now returns a clean 409, but other malformed input (e.g. wrong vector dimensions, bad JSON) isn't yet validated with specific handlers.
 Fixed-window rate limiting can allow bursts at window boundaries — up to 2x the limit across a window edge. A sliding window would smooth this out.
 Rate limit is hardcoded at 100/minute rather than configurable via properties.
+Known limitation for README: Postgres data lives in the
+container rather than a named Docker volume, so removing the container deletes the
+data — a volume would decouple data lifetime from container lifetime.
+
 
 
 
