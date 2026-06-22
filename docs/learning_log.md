@@ -9,6 +9,7 @@ Day 5: Redis caching — cache-aside pattern, query results cached by hashed key
 Day 6: Rate limiting (Redis counter, 100/min, 429) + global error handling (409 on duplicate)
 Day 7: Dockerized the app (multi-stage Dockerfile) + docker-compose wiring all three containers
 Day 8: Add Locust load testing, fix health endpoint auth and rate-limit key bug"
+Day 9: 
 
 ---
 
@@ -278,6 +279,28 @@ to dataset size; a larger index would likely show a measurable gap. Documented a
 a finding rather than re-running at scale, given project timeline.
 
 ---
+
+## Day 9
+### What I built
+Wrote the complete README.md at the project root. Assembled all sections from
+nine days of learning log notes, design decisions, and Day 8 benchmark results:
+Overview, Motivation, Architectural Style, Package Structure, Key Design
+Decisions, Known Limitations (9 items), Benchmark Results (two Locust runs),
+How to Run, What I Learned, and Future Features.
+
+### What confused me
+Nothing technically new this session — Day 9 was synthesis, not construction.
+The work was assembling nine days of scattered notes into one coherent document.
+
+### How I resolved it
+Tracked Known Limitations incrementally across every day rather than trying to
+reconstruct them at the end. That made the assembly fast rather than a
+archaeology exercise.
+
+### Performance notes
+N/A — documentation day.
+
+
 
 
 
