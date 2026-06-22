@@ -9,7 +9,7 @@ Day 5: Redis caching — cache-aside pattern, query results cached by hashed key
 Day 6: Rate limiting (Redis counter, 100/min, 429) + global error handling (409 on duplicate)
 Day 7: Dockerized the app (multi-stage Dockerfile) + docker-compose wiring all three containers
 Day 8: Add Locust load testing, fix health endpoint auth and rate-limit key bug"
-Day 9: 
+Day 9: Complete README, project finished
 
 ---
 
