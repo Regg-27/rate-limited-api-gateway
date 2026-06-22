@@ -280,31 +280,6 @@ a finding rather than re-running at scale, given project timeline.
 ---
 
 
-## Notes
-Vectors stored as comma-separated TEXT in Postgres rather than a native array type — simplest JDBC mapping, at the cost of not being able to query individual vector values in SQL. Acceptable tradeoff since vector contents are never queried at the database level; all similarity computation happens in-memory.
-JWT secret key regenerates on each restart, invalidating all existing tokens. Production would load a stable secret from config/env.
-/login accepts any credentials without verifying against stored hashed passwords.
-Arrays.hashCode is a 32-bit hash with theoretical collision risk for cache keys; production would use SHA-256.
-No TTL on search cache entries — the cache grows unbounded. (Note: the rate-limiter counter does have a TTL; this is specifically about the search result cache.)
-Duplicate-id ingest now returns a clean 409, but other malformed input (e.g. wrong vector dimensions, bad JSON) isn't yet validated with specific handlers.
-Fixed-window rate limiting can allow bursts at window boundaries — up to 2x the limit across a window edge. A sliding window would smooth this out.
-Rate limit is hardcoded at 100/minute rather than configurable via properties.
-Known limitation for README: Postgres data lives in the
-container rather than a named Docker volume, so removing the container deletes the
-data — a volume would decouple data lifetime from container lifetime.
-Day 8 — Locust load test results (50 concurrent users, 1s wait time, real search vector [1.0, 0.0, 0.0]):
-- /login:  50 requests, 0 fails, median 27ms, 95%ile 95ms, 99%ile 99ms
-- /search: 3702 requests, 0 fails, median 18ms, 95%ile 33ms, 99%ile 39ms, max 46ms
-- Throughput: 45.2 req/s sustained, 50 concurrent users
-- 0% failure rate after fixing two test issues: shared rate-limit bucket (all
-  virtual users sharing one username) and unauthenticated /health endpoint
-  Second run — varied random query vectors (mostly cache misses):
-- /search: 3050 requests, 0 fails, median 19ms, 95%ile 30ms, 99%ile 39ms
-Comparison: cached (repeated vector) vs uncached (random vectors) showed
-negligible difference (18ms vs 19ms median) at current index size (~3 vectors).
-Cache benefit is proportional to dataset size — with only a few vectors in the
-index, brute-force cosine similarity is already faster than the overhead it
-would save. Would expect a measurable gap with hundreds/thousands of vectors.
 
 
 
